@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"time"
@@ -222,7 +223,7 @@ func (m message) encode() []byte {
 }
 
 // readMessage reads a message from the socket.
-func readMessage(conn net.Conn) (m message, err error) {
+func readMessage(conn io.Reader) (m message, err error) {
 	header := make([]byte, headerLen)
 	var n int
 	switch n, err = conn.Read(header); {
@@ -250,7 +251,7 @@ func readMessage(conn net.Conn) (m message, err error) {
 }
 
 // writeMessage writes a message to the socket.
-func writeMessage(m message, conn net.Conn) (err error) {
+func writeMessage(m message, conn io.Writer) (err error) {
 	buf := m.encode()
 	var n int
 	if n, err = conn.Write(buf); n != len(buf) {
