@@ -37,7 +37,7 @@ func TestGetDiscordSocket(t *testing.T) {
 func TestMessageEncode(t *testing.T) {
 	m := message{
 		Opcode:  1,
-		Payload: `{}`,
+		Payload: []byte(`{}`),
 	}
 	want := []byte("\x01\x00\x00\x00\x02\x00\x00\x00{}")
 	got := m.encode()
@@ -186,7 +186,7 @@ func TestClientSend(t *testing.T) {
 
 	type sendData struct {
 		opcode                          int32
-		requestPayload, responsePayload string
+		requestPayload, responsePayload Payload
 		requestWire, responseWire       []byte
 	}
 
@@ -202,7 +202,7 @@ func TestClientSend(t *testing.T) {
 			if err != nil {
 				errors <- err
 			}
-			if ans != data.responsePayload {
+			if !bytes.Equal(ans, data.responsePayload) {
 				errors <- fmt.Errorf("Client wanted answer `%s`, got `%s`", data.responsePayload, ans)
 			}
 			done <- 1
@@ -237,16 +237,16 @@ func TestClientSend(t *testing.T) {
 
 	t.Run("SendHandshake", testSend(sendData{
 		opcode:          0,
-		requestPayload:  `{"cmd":"TEST"}`,
-		responsePayload: `{"cmd":"TEST","reply":1}`,
+		requestPayload:  []byte(`{"cmd":"TEST"}`),
+		responsePayload: []byte(`{"cmd":"TEST","reply":1}`),
 		requestWire:     []byte("\x00\x00\x00\x00\x0e\x00\x00\x00" + `{"cmd":"TEST"}`),
 		responseWire:    []byte("\x00\x00\x00\x00\x18\x00\x00\x00" + `{"cmd":"TEST","reply":1}`),
 	}))
 
 	t.Run("SendFrame", testSend(sendData{
 		opcode:          1,
-		requestPayload:  `{"cmd":"TEST"}`,
-		responsePayload: `{"cmd":"TEST","reply":1}`,
+		requestPayload:  []byte(`{"cmd":"TEST"}`),
+		responsePayload: []byte(`{"cmd":"TEST","reply":1}`),
 		requestWire:     []byte("\x01\x00\x00\x00\x0e\x00\x00\x00" + `{"cmd":"TEST"}`),
 		responseWire:    []byte("\x01\x00\x00\x00\x18\x00\x00\x00" + `{"cmd":"TEST","reply":1}`),
 	}))

@@ -23,6 +23,9 @@ import (
 	"time"
 )
 
+// Payload is the type for Discord's message payload.
+type Payload []byte
+
 // Client is a wrapper for reading and writing to the Discord client via its
 // IPC socket.
 //
@@ -33,7 +36,7 @@ type Client struct {
 	//
 	// out is read exclusively by the Start() goroutine, and written to
 	// exclusively by Send() and Close().
-	out chan string
+	out chan Payload
 
 	// in receives messages that were read from Discord.
 	//
@@ -68,7 +71,7 @@ type message struct {
 	Opcode int32
 
 	// Payload is the JSON string encoded as UTF-8.
-	Payload string
+	Payload Payload
 }
 
 // getDiscordSocket constructs a path to a Discord IPC socket.
@@ -83,7 +86,7 @@ func newClient(conn net.Conn) *Client {
 	return &Client{
 		// A buffer size of 1 causes Send() to block until the previous message
 		// has an answer.
-		out:  make(chan string, 1),
+		out:  make(chan Payload, 1),
 		in:   make(chan message),
 		conn: conn,
 	}
@@ -193,7 +196,7 @@ EventLoop:
 //
 // The returned answer does not include the header used by Discord's IPC
 // protocol; it's just the payload (typically JSON).
-func (c *Client) Send(payload string) (ans string, err error) {
+func (c *Client) Send(payload Payload) (ans Payload, err error) {
 	c.out <- payload
 
 	if m, ok := <-c.in; !ok {
@@ -218,7 +221,7 @@ func (m message) encode() []byte {
 	buf := bytes.NewBuffer(make([]byte, 0, len(m.Payload)+headerLen))
 	binary.Write(buf, binary.LittleEndian, m.Opcode)
 	binary.Write(buf, binary.LittleEndian, int32(len(m.Payload)))
-	buf.WriteString(m.Payload)
+	buf.Write(m.Payload)
 	return buf.Bytes()
 }
 
@@ -246,7 +249,7 @@ func readMessage(conn io.Reader) (m message, err error) {
 	case n != int(payloadLen):
 		return m, fmt.Errorf("Wanted %d-byte payload, read %d bytes", payloadLen, n)
 	}
-	m.Payload = string(payload[:])
+	m.Payload = payload
 	return
 }
 
