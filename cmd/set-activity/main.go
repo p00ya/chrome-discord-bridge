@@ -119,7 +119,7 @@ func main() {
 	}
 
 	// Wait for a user interrupt before exiting.
-	sigint := make(chan os.Signal)
+	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
 
 	<-sigint
