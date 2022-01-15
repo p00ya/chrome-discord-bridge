@@ -5,7 +5,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"regexp"
@@ -77,7 +76,7 @@ func main() {
 	flag.Usage = printUsage
 	flag.Parse()
 	if flag.NArg() != 2 {
-		log.Printf("Error: expected 2 arguments, got %d\n", flag.NArg())
+		fmt.Fprintf(os.Stderr, "Error: expected 2 arguments, got %d\n", flag.NArg())
 		printUsage()
 		os.Exit(exitInvalidUsage)
 	}
