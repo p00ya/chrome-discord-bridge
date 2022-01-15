@@ -107,7 +107,7 @@ func main() {
 	go discordClient.Start()
 
 	if res, err := sendHandshake(discordClient, clientId); err != nil {
-		fmt.Fprint(os.Stderr, "Error sending HANDSHAKE: %v", err)
+		fmt.Fprintf(os.Stderr, "Error sending HANDSHAKE: %v", err)
 		os.Exit(exitFailure)
 	} else {
 		fmt.Println(string(res))
