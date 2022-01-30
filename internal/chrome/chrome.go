@@ -131,12 +131,16 @@ func readPayload(in io.Reader) (payload []byte, err error) {
 // writePayload sends a Chrome native messaging payload to Chrome.
 func writePayload(payload []byte, out io.Writer) (err error) {
 	buf := make([]byte, headerLen+len(payload))
-	nativeEndian.PutUint32(buf[0:headerLen], uint32(len(payload)))
+	nativeEndian.PutUint32(buf[:headerLen], uint32(len(payload)))
 	copy(buf[headerLen:], payload)
 
-	var n int
-	if n, err = out.Write(buf); n != len(buf) {
-		err = fmt.Errorf("Wanted to write %d bytes, wrote %d bytes", len(buf), n)
+	for err == nil && len(buf) > 0 {
+		var n int
+		n, err = out.Write(buf)
+		if n == 0 {
+			return io.EOF
+		}
+		buf = buf[n:]
 	}
 	return
 }

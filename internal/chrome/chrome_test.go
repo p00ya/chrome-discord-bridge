@@ -36,9 +36,17 @@ func (fake *fakeReader) Read(b []byte) (n int, err error) {
 type fakeWriter struct {
 	// WriteCh is packets that have been written with Write().
 	WriteCh chan []byte
+
+	// BufSize is the maximum number of bytes that can be written at once, or 0
+	// for no limit.
+	BufSize int
 }
 
 func (fake *fakeWriter) Write(p []byte) (n int, err error) {
+	if fake.BufSize > 0 && fake.BufSize < len(p) {
+		p = p[:fake.BufSize]
+	}
+
 	fake.WriteCh <- p
 	return len(p), nil
 }
@@ -54,6 +62,7 @@ func TestHost(t *testing.T) {
 	}
 	out := &fakeWriter{
 		WriteCh: make(chan []byte),
+		BufSize: 0,
 	}
 	host := NewHost(in, out)
 
@@ -99,6 +108,58 @@ func TestHost(t *testing.T) {
 			}
 			if !bytes.Equal(response, responseWire) {
 				errors <- fmt.Errorf("Wanted write %v, got %v", responseWire, response)
+			}
+			done <- 1
+		}()
+
+		for n := 3; n > 0; {
+			select {
+			case <-done:
+				n--
+			case err := <-errors:
+				t.Error(err)
+			case <-time.After(timeoutSeconds * time.Second):
+				t.Fatalf("Timeout, still waiting on %d goroutines", n)
+			}
+		}
+	})
+
+	// Test the writer having a buffer smaller than the response.
+	t.Run("PartialWrites", func(t *testing.T) {
+		done := make(chan int)
+		errors := make(chan error)
+		out.BufSize = 4
+
+		// Simulate Chrome writing a request.
+		go func() {
+			in.ReadCh <- requestWire
+			done <- 1
+		}()
+
+		go func() {
+			_, responder := host.Receive()
+			responder.Respond(responsePayload)
+			done <- 1
+		}()
+
+		// Simulate Chrome reading the response.
+		go func() {
+			for i := 0; i < len(responseWire); i += out.BufSize {
+				partialWrite, ok := <-out.WriteCh
+
+				if !ok {
+					errors <- fmt.Errorf("Wanted response, got closed channel")
+					break
+				}
+				end := i + out.BufSize
+				if end > len(responseWire) {
+					end = len(responseWire)
+				}
+				partialExpected := responseWire[i:end]
+				if !bytes.Equal(partialWrite, partialExpected) {
+					errors <- fmt.Errorf("Wanted write %v, got %v", partialExpected, partialWrite)
+					break
+				}
 			}
 			done <- 1
 		}()
