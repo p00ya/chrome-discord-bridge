@@ -15,6 +15,11 @@ const timeoutSeconds = 2
 type fakeReader struct {
 	// ReadCh is packets to be read with Read().
 	ReadCh chan []byte
+
+	// BufSize is the maximum number of bytes that can be written at once, or 0
+	// for no limit.
+	BufSize int
+
 	// readBuf contains any unread bytes from the current packet.
 	readBuf []byte
 }
@@ -125,14 +130,21 @@ func TestHost(t *testing.T) {
 	})
 
 	// Test the writer having a buffer smaller than the response.
-	t.Run("PartialWrites", func(t *testing.T) {
+	t.Run("PartialReadWrites", func(t *testing.T) {
 		done := make(chan int)
 		errors := make(chan error)
+		in.ReadCh = make(chan []byte, 1)
+		in.BufSize = 4
 		out.BufSize = 4
 
 		// Simulate Chrome writing a request.
 		go func() {
-			in.ReadCh <- requestWire
+			var i int
+			for i = 0; i+in.BufSize < len(requestWire); i += in.BufSize {
+				in.ReadCh <- requestWire[i : i+in.BufSize]
+			}
+			in.ReadCh <- requestWire[i:]
+
 			done <- 1
 		}()
 

@@ -119,11 +119,19 @@ func readPayload(in io.Reader) (payload []byte, err error) {
 	payloadLen := nativeEndian.Uint32(header)
 	if payloadLen > maxPayloadBytes {
 		err = fmt.Errorf("Want at most %d-byte payload, got %d", maxPayloadBytes, payloadLen)
+		return
 	}
 
 	payload = make([]byte, payloadLen)
-	if n, err = in.Read(payload); n != int(payloadLen) {
-		err = fmt.Errorf("Wanted %d-byte payload, read %d bytes", payloadLen, n)
+	buf := payload
+	for err == nil && len(buf) > 0 {
+		n, err = in.Read(buf)
+		if n == 0 {
+			err = io.EOF
+			break
+		}
+
+		buf = buf[n:]
 	}
 	return
 }
