@@ -15,12 +15,9 @@ package discord
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"time"
 )
 
 // Payload is the type for Discord's message payload.
@@ -125,62 +122,52 @@ func (c *Client) Start() (err error) {
 	var nextOpcode int32 = Handshake
 
 	// We want to handle events coming from either direction (reads from Discord
-	// or writes from Send()).
-	//
-	// In an ideal world, we'd be able to do a kernel-style select/epoll/kqueue to
-	// multiplex waiting for either event.  Unfortunately in the Go stdlib,
-	// net.Conn only exposes a blocking read, and we don't want two goroutines
-	// accessing the Conn concurrently, so we poll once a second.
-
+	// or writes from Send()).  Each iteration of the loop reads one message from
+	// Discord, either if there is an unsolicited one waiting, or as a response
+	// to Send().
 EventLoop:
 	for err == nil {
-		// Wait on a Send() or Close().
-		didSend := false
+		readCh := make(chan messageResult)
+		go func() {
+			msg, err := readMessage(c.conn)
+			readCh <- messageResult{msg, err}
+		}()
+
+		var r messageResult
 		select {
 		case payload, ok := <-c.out:
+			// Got a Send() or Close().
 			if !ok {
 				break EventLoop
 			}
 
+			// Note that we have a concurrent conn.Write() and conn.Read() here, which
+			// is okay according to the net.Conn docs.
 			if err = writeMessage(message{Opcode: nextOpcode, Payload: payload}, c.conn); err != nil {
 				break EventLoop
 			}
-
 			nextOpcode = Frame
-			didSend = true
-		case <-time.After(time.Second):
-		}
-
-		// Try to read from the socket.
-		if didSend {
 			// Block on an answer from Discord.
-			c.conn.SetReadDeadline(time.Time{})
-			var m message
-			m, err = readMessage(c.conn)
-			if err == nil {
-				c.in <- m
-				continue
+			r = <-readCh
+			err = r.err
+			if r.err == nil {
+				c.in <- r.msg
 			}
-		} else {
-			// Set a negligible deadline to check if there are server-initiated
-			// messages.
-			c.conn.SetReadDeadline(time.Now().Add(time.Millisecond))
-			var m message
-			m, err = readMessage(c.conn)
+
+		case r = <-readCh:
+			err = r.err
+			// Unsolicited message from Discord.
 			switch {
-			case errors.Is(err, os.ErrDeadlineExceeded):
-				// Normal case - no message from server.
-				err = nil
 			case err != nil:
 				// Terminates loop.
-			case m.Opcode == Ping:
+			case r.msg.Opcode == Ping:
 				// Respond immediately to ping.
-				m.Opcode = Pong
-				err = writeMessage(m, c.conn)
-			case m.Opcode == Close:
+				r.msg.Opcode = Pong
+				err = writeMessage(r.msg, c.conn)
+			case r.msg.Opcode == Close:
 				err = fmt.Errorf("Discord IPC connection terminated by Discord")
 			default:
-				err = fmt.Errorf("Got unexpected opcode: %d, payload: %v", m.Opcode, m.Payload)
+				err = fmt.Errorf("Got unexpected opcode: %d, payload: %v", r.msg.Opcode, r.msg.Payload)
 			}
 		}
 	}
@@ -223,6 +210,12 @@ func (m message) encode() []byte {
 	binary.Write(buf, binary.LittleEndian, int32(len(m.Payload)))
 	buf.Write(m.Payload)
 	return buf.Bytes()
+}
+
+// messageResult contains readMessage's result list.
+type messageResult struct {
+	msg message
+	err error
 }
 
 // readMessage reads a message from the socket.
