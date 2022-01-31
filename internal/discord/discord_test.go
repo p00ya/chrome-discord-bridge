@@ -187,7 +187,8 @@ func TestClientSend(t *testing.T) {
 	type sendData struct {
 		opcode                          int32
 		requestPayload, responsePayload Payload
-		requestWire, responseWire       []byte
+		wireRequest                     []byte
+		wireResponse                    [][]byte
 	}
 
 	// testSend returns a test subcase function that verifies a message is
@@ -211,11 +212,13 @@ func TestClientSend(t *testing.T) {
 		go func() {
 			buf := <-fakeConn.WriteCh
 
-			if !bytes.Equal(buf, data.requestWire) {
-				errors <- fmt.Errorf("Server wanted %v, got %v", data.requestWire, buf)
+			if !bytes.Equal(buf, data.wireRequest) {
+				errors <- fmt.Errorf("Server wanted %v, got %v", data.wireRequest, buf)
 			}
 
-			fakeConn.ReadCh <- data.responseWire
+			for _, packet := range data.wireResponse {
+				fakeConn.ReadCh <- packet
+			}
 			done <- 1
 		}()
 
@@ -239,16 +242,28 @@ func TestClientSend(t *testing.T) {
 		opcode:          0,
 		requestPayload:  []byte(`{"cmd":"TEST"}`),
 		responsePayload: []byte(`{"cmd":"TEST","reply":1}`),
-		requestWire:     []byte("\x00\x00\x00\x00\x0e\x00\x00\x00" + `{"cmd":"TEST"}`),
-		responseWire:    []byte("\x00\x00\x00\x00\x18\x00\x00\x00" + `{"cmd":"TEST","reply":1}`),
+		wireRequest:     []byte("\x00\x00\x00\x00\x0e\x00\x00\x00" + `{"cmd":"TEST"}`),
+		wireResponse:    [][]byte{[]byte("\x00\x00\x00\x00\x18\x00\x00\x00" + `{"cmd":"TEST","reply":1}`)},
 	}))
 
 	t.Run("SendFrame", testSend(sendData{
 		opcode:          1,
 		requestPayload:  []byte(`{"cmd":"TEST"}`),
 		responsePayload: []byte(`{"cmd":"TEST","reply":1}`),
-		requestWire:     []byte("\x01\x00\x00\x00\x0e\x00\x00\x00" + `{"cmd":"TEST"}`),
-		responseWire:    []byte("\x01\x00\x00\x00\x18\x00\x00\x00" + `{"cmd":"TEST","reply":1}`),
+		wireRequest:     []byte("\x01\x00\x00\x00\x0e\x00\x00\x00" + `{"cmd":"TEST"}`),
+		wireResponse:    [][]byte{[]byte("\x01\x00\x00\x00\x18\x00\x00\x00" + `{"cmd":"TEST","reply":1}`)},
+	}))
+
+	t.Run("SplitResponse", testSend(sendData{
+		opcode:          1,
+		requestPayload:  []byte(`{"cmd":"TEST","nonce":2}`),
+		responsePayload: []byte(`{"cmd":"TEST","reply":2}`),
+		wireRequest:     []byte("\x01\x00\x00\x00\x18\x00\x00\x00" + `{"cmd":"TEST","nonce":2}`),
+		wireResponse: [][]byte{
+			[]byte("\x01\x00\x00\x00\x18\x00\x00\x00"),
+			[]byte(`{"cmd":"TEST"`),
+			[]byte(`,"reply":2}`),
+		},
 	}))
 
 	t.Run("Close", func(t *testing.T) {

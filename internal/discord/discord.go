@@ -235,14 +235,18 @@ func readMessage(conn io.Reader) (m message, err error) {
 	var payloadLen int32
 	binary.Read(reader, binary.LittleEndian, &payloadLen)
 
-	payload := make([]byte, payloadLen)
-	switch n, err = conn.Read(payload); {
-	case err != nil:
-		return
-	case n != int(payloadLen):
-		return m, fmt.Errorf("Wanted %d-byte payload, read %d bytes", payloadLen, n)
+	m.Payload = make([]byte, payloadLen)
+	buf := m.Payload
+
+	for err == nil && len(buf) > 0 {
+		n, err = conn.Read(buf)
+		if n == 0 {
+			err = io.EOF
+			break
+		}
+
+		buf = buf[n:]
 	}
-	m.Payload = payload
 	return
 }
 
