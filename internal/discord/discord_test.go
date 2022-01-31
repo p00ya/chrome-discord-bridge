@@ -115,7 +115,8 @@ func TestDial(t *testing.T) {
 	}
 }
 
-// fakeConn is a channel-driven implementation of net.Conn for testing.
+// fakeConn is a channel-driven implementation of io.ReadWriteCloser for
+// testing.
 type fakeConn struct {
 	// WriteCh is sent packets from Write().
 	WriteCh chan []byte
@@ -149,26 +150,6 @@ func (fake *fakeConn) Write(b []byte) (n int, err error) {
 func (fake *fakeConn) Close() error {
 	close(fake.WriteCh)
 	return nil
-}
-
-func (fake *fakeConn) LocalAddr() (addr net.Addr) {
-	return
-}
-
-func (fake *fakeConn) RemoteAddr() (addr net.Addr) {
-	return
-}
-
-func (fake *fakeConn) SetDeadline(t time.Time) (err error) {
-	return
-}
-
-func (fake *fakeConn) SetReadDeadline(t time.Time) (err error) {
-	return
-}
-
-func (fake *fakeConn) SetWriteDeadline(t time.Time) (err error) {
-	return
 }
 
 func TestClientSend(t *testing.T) {

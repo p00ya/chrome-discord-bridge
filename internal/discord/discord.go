@@ -41,10 +41,11 @@ type Client struct {
 	// exclusively by Send().
 	in chan message
 
-	// conn is the Discord IPC socket.
+	// rw is the Discord IPC socket.
 	//
-	// conn is accessed exclusively by the Start() goroutine.
-	conn net.Conn
+	// It need not be a net.Conn, but it must support concurrent calls to Read
+	// and Write like net.Conn.
+	rw io.ReadWriteCloser
 
 	// Blocks until the last message sent with Send() has received an answer.
 	waitForAnswer chan int
@@ -79,13 +80,13 @@ func getDiscordSocket(tmpDir string, n int) string {
 }
 
 // newClient creates a Client with the specified IPC socket.
-func newClient(conn net.Conn) *Client {
+func newClient(rw io.ReadWriteCloser) *Client {
 	return &Client{
 		// A buffer size of 1 causes Send() to block until the previous message
 		// has an answer.
-		out:  make(chan Payload, 1),
-		in:   make(chan message),
-		conn: conn,
+		out: make(chan Payload, 1),
+		in:  make(chan message),
+		rw:  rw,
 	}
 }
 
@@ -129,7 +130,7 @@ EventLoop:
 	for err == nil {
 		readCh := make(chan messageResult)
 		go func() {
-			msg, err := readMessage(c.conn)
+			msg, err := readMessage(c.rw)
 			readCh <- messageResult{msg, err}
 		}()
 
@@ -141,9 +142,7 @@ EventLoop:
 				break EventLoop
 			}
 
-			// Note that we have a concurrent conn.Write() and conn.Read() here, which
-			// is okay according to the net.Conn docs.
-			if err = writeMessage(message{Opcode: nextOpcode, Payload: payload}, c.conn); err != nil {
+			if err = writeMessage(message{Opcode: nextOpcode, Payload: payload}, c.rw); err != nil {
 				break EventLoop
 			}
 			nextOpcode = Frame
@@ -163,7 +162,7 @@ EventLoop:
 			case r.msg.Opcode == Ping:
 				// Respond immediately to ping.
 				r.msg.Opcode = Pong
-				err = writeMessage(r.msg, c.conn)
+				err = writeMessage(r.msg, c.rw)
 			case r.msg.Opcode == Close:
 				err = fmt.Errorf("Discord IPC connection terminated by Discord")
 			default:
@@ -172,8 +171,8 @@ EventLoop:
 		}
 	}
 	close(c.in)
-	c.conn.Close()
-	c.conn = nil
+	c.rw.Close()
+	c.rw = nil
 	return
 }
 
@@ -219,10 +218,10 @@ type messageResult struct {
 }
 
 // readMessage reads a message from the socket.
-func readMessage(conn io.Reader) (m message, err error) {
+func readMessage(r io.Reader) (m message, err error) {
 	header := make([]byte, headerLen)
 	var n int
-	switch n, err = conn.Read(header); {
+	switch n, err = r.Read(header); {
 	case err != nil:
 		return
 	case n != headerLen:
@@ -236,15 +235,15 @@ func readMessage(conn io.Reader) (m message, err error) {
 	binary.Read(reader, binary.LittleEndian, &payloadLen)
 
 	m.Payload = make([]byte, payloadLen)
-	_, err = io.ReadFull(conn, m.Payload)
+	_, err = io.ReadFull(r, m.Payload)
 	return
 }
 
 // writeMessage writes a message to the socket.
-func writeMessage(m message, conn io.Writer) (err error) {
+func writeMessage(m message, w io.Writer) (err error) {
 	buf := m.encode()
 	var n int
-	if n, err = conn.Write(buf); n != len(buf) {
+	if n, err = w.Write(buf); n != len(buf) {
 		err = fmt.Errorf("Wanted to write %d bytes, wrote %d bytes", len(buf), n)
 	}
 	return
