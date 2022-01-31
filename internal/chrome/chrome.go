@@ -123,16 +123,7 @@ func readPayload(in io.Reader) (payload []byte, err error) {
 	}
 
 	payload = make([]byte, payloadLen)
-	buf := payload
-	for err == nil && len(buf) > 0 {
-		n, err = in.Read(buf)
-		if n == 0 {
-			err = io.EOF
-			break
-		}
-
-		buf = buf[n:]
-	}
+	_, err = io.ReadFull(in, payload)
 	return
 }
 

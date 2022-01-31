@@ -236,17 +236,7 @@ func readMessage(conn io.Reader) (m message, err error) {
 	binary.Read(reader, binary.LittleEndian, &payloadLen)
 
 	m.Payload = make([]byte, payloadLen)
-	buf := m.Payload
-
-	for err == nil && len(buf) > 0 {
-		n, err = conn.Read(buf)
-		if n == 0 {
-			err = io.EOF
-			break
-		}
-
-		buf = buf[n:]
-	}
+	_, err = io.ReadFull(conn, m.Payload)
 	return
 }
 
