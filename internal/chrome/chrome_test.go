@@ -11,64 +11,9 @@ import (
 // Number of seconds to wait for things that should be near-instantaneous.
 const timeoutSeconds = 2
 
-// fakeReader is an implementation of io.Reader for testing.
-type fakeReader struct {
-	// ReadCh is packets to be read with Read().
-	ReadCh chan []byte
-
-	// BufSize is the maximum number of bytes that can be written at once, or 0
-	// for no limit.
-	BufSize int
-
-	// readBuf contains any unread bytes from the current packet.
-	readBuf []byte
-}
-
-func (fake *fakeReader) Read(b []byte) (n int, err error) {
-	if len(fake.readBuf) == 0 {
-		var ok bool
-		fake.readBuf, ok = <-fake.ReadCh
-		if !ok {
-			return 0, io.EOF
-		}
-	}
-	n = copy(b, fake.readBuf)
-	fake.readBuf = fake.readBuf[n:]
-	return
-}
-
-// fakeWriter is an implementation of io.WriteCloser for testing.
-type fakeWriter struct {
-	// WriteCh is packets that have been written with Write().
-	WriteCh chan []byte
-
-	// BufSize is the maximum number of bytes that can be written at once, or 0
-	// for no limit.
-	BufSize int
-}
-
-func (fake *fakeWriter) Write(p []byte) (n int, err error) {
-	if fake.BufSize > 0 && fake.BufSize < len(p) {
-		p = p[:fake.BufSize]
-	}
-
-	fake.WriteCh <- p
-	return len(p), nil
-}
-
-func (fake *fakeWriter) Close() error {
-	close(fake.WriteCh)
-	return nil
-}
-
 func TestHost(t *testing.T) {
-	in := &fakeReader{
-		ReadCh: make(chan []byte),
-	}
-	out := &fakeWriter{
-		WriteCh: make(chan []byte),
-		BufSize: 0,
-	}
+	in, inPipe := io.Pipe()
+	outPipe, out := io.Pipe()
 	host := NewHost(in, out)
 
 	startDone := make(chan error)
@@ -90,7 +35,7 @@ func TestHost(t *testing.T) {
 
 		// Simulate Chrome writing a request.
 		go func() {
-			in.ReadCh <- requestWire
+			inPipe.Write(requestWire)
 			done <- 1
 		}()
 
@@ -106,13 +51,14 @@ func TestHost(t *testing.T) {
 
 		// Simulate Chrome reading the response.
 		go func() {
-			response, ok := <-out.WriteCh
+			buf := make([]byte, len(responseWire))
+			_, err := io.ReadFull(outPipe, buf)
 
-			if !ok {
-				errors <- fmt.Errorf("Wanted response, got closed channel")
+			if err != nil {
+				errors <- fmt.Errorf("Wanted response, got %v", err)
 			}
-			if !bytes.Equal(response, responseWire) {
-				errors <- fmt.Errorf("Wanted write %v, got %v", responseWire, response)
+			if !bytes.Equal(buf, responseWire) {
+				errors <- fmt.Errorf("Wanted write %v, got %v", responseWire, buf)
 			}
 			done <- 1
 		}()
@@ -133,17 +79,15 @@ func TestHost(t *testing.T) {
 	t.Run("PartialReadWrites", func(t *testing.T) {
 		done := make(chan int)
 		errors := make(chan error)
-		in.ReadCh = make(chan []byte, 1)
-		in.BufSize = 4
-		out.BufSize = 4
+		bufSize := 4
 
 		// Simulate Chrome writing a request.
 		go func() {
 			var i int
-			for i = 0; i+in.BufSize < len(requestWire); i += in.BufSize {
-				in.ReadCh <- requestWire[i : i+in.BufSize]
+			for i = 0; i+bufSize < len(requestWire); i += bufSize {
+				inPipe.Write(requestWire[i : i+bufSize])
 			}
-			in.ReadCh <- requestWire[i:]
+			inPipe.Write(requestWire[i:])
 
 			done <- 1
 		}()
@@ -156,22 +100,12 @@ func TestHost(t *testing.T) {
 
 		// Simulate Chrome reading the response.
 		go func() {
-			for i := 0; i < len(responseWire); i += out.BufSize {
-				partialWrite, ok := <-out.WriteCh
-
-				if !ok {
-					errors <- fmt.Errorf("Wanted response, got closed channel")
-					break
-				}
-				end := i + out.BufSize
-				if end > len(responseWire) {
-					end = len(responseWire)
-				}
-				partialExpected := responseWire[i:end]
-				if !bytes.Equal(partialWrite, partialExpected) {
-					errors <- fmt.Errorf("Wanted write %v, got %v", partialExpected, partialWrite)
-					break
-				}
+			buf := make([]byte, len(responseWire))
+			switch _, err := io.ReadFull(outPipe, buf); {
+			case err != nil:
+				errors <- fmt.Errorf("Wanted response, got %v", err)
+			case !bytes.Equal(buf, responseWire):
+				errors <- fmt.Errorf("Wanted write %v, got %v", responseWire, buf)
 			}
 			done <- 1
 		}()
@@ -189,12 +123,22 @@ func TestHost(t *testing.T) {
 	})
 
 	t.Run("Close", func(t *testing.T) {
+		done := make(chan int)
+		go func() {
+			buf := make([]byte, 1)
+			switch n, err := outPipe.Read(buf); {
+			case n > 0:
+				t.Errorf("Got unexpected buf %v", buf[:n])
+			case err != io.EOF && err != io.ErrClosedPipe:
+				t.Errorf("Got unexpected err %v, wanted EOF", err)
+			}
+			done <- 1
+		}()
+
 		host.Close()
 		select {
-		case _, ok := <-out.WriteCh:
-			if ok {
-				t.Errorf("Got response, expected output file to be closed")
-			}
+		case <-done:
+			// Good.
 		case <-time.After(timeoutSeconds * time.Second):
 			t.Fatal("Timeout")
 		}
