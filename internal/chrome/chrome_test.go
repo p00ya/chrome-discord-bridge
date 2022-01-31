@@ -2,7 +2,6 @@ package chrome
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -31,7 +30,6 @@ func TestHost(t *testing.T) {
 
 	t.Run("Receive", func(t *testing.T) {
 		done := make(chan int)
-		errors := make(chan error)
 
 		// Simulate Chrome writing a request.
 		go func() {
@@ -43,7 +41,7 @@ func TestHost(t *testing.T) {
 		go func() {
 			request, responder := host.Receive()
 			if !bytes.Equal(request, requestPayload) {
-				errors <- fmt.Errorf("Wanted request %v, got %v", requestPayload, request)
+				t.Errorf("Wanted request %v, got %v", requestPayload, request)
 			}
 			responder.Respond(responsePayload)
 			done <- 1
@@ -55,10 +53,10 @@ func TestHost(t *testing.T) {
 			_, err := io.ReadFull(outPipe, buf)
 
 			if err != nil {
-				errors <- fmt.Errorf("Wanted response, got %v", err)
+				t.Errorf("Wanted response, got %v", err)
 			}
 			if !bytes.Equal(buf, responseWire) {
-				errors <- fmt.Errorf("Wanted write %v, got %v", responseWire, buf)
+				t.Errorf("Wanted write %v, got %v", responseWire, buf)
 			}
 			done <- 1
 		}()
@@ -67,8 +65,6 @@ func TestHost(t *testing.T) {
 			select {
 			case <-done:
 				n--
-			case err := <-errors:
-				t.Error(err)
 			case <-time.After(timeoutSeconds * time.Second):
 				t.Fatalf("Timeout, still waiting on %d goroutines", n)
 			}
@@ -78,7 +74,6 @@ func TestHost(t *testing.T) {
 	// Test the writer having a buffer smaller than the response.
 	t.Run("PartialReadWrites", func(t *testing.T) {
 		done := make(chan int)
-		errors := make(chan error)
 		bufSize := 4
 
 		// Simulate Chrome writing a request.
@@ -103,9 +98,9 @@ func TestHost(t *testing.T) {
 			buf := make([]byte, len(responseWire))
 			switch _, err := io.ReadFull(outPipe, buf); {
 			case err != nil:
-				errors <- fmt.Errorf("Wanted response, got %v", err)
+				t.Errorf("Wanted response, got %v", err)
 			case !bytes.Equal(buf, responseWire):
-				errors <- fmt.Errorf("Wanted write %v, got %v", responseWire, buf)
+				t.Errorf("Wanted write %v, got %v", responseWire, buf)
 			}
 			done <- 1
 		}()
@@ -114,8 +109,6 @@ func TestHost(t *testing.T) {
 			select {
 			case <-done:
 				n--
-			case err := <-errors:
-				t.Error(err)
 			case <-time.After(timeoutSeconds * time.Second):
 				t.Fatalf("Timeout, still waiting on %d goroutines", n)
 			}

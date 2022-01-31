@@ -83,13 +83,11 @@ func TestDial(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	errors := make(chan error)
-
 	serverDone := make(chan net.Conn)
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
-			errors <- fmt.Errorf("Got %v while waiting for connections", err)
+			t.Errorf("Got %v while waiting for connections", err)
 		}
 		serverDone <- conn
 	}()
@@ -98,7 +96,7 @@ func TestDial(t *testing.T) {
 	go func() {
 		client, err := Dial(fake.TmpDir)
 		if err != nil {
-			errors <- fmt.Errorf("Got %v while dialing", err)
+			t.Errorf("Got %v while dialing", err)
 		}
 		clientDone <- client
 	}()
@@ -106,8 +104,6 @@ func TestDial(t *testing.T) {
 	// Wait for both the client and server goroutines to finish.
 	for n := 2; n > 0; {
 		select {
-		case err := <-errors:
-			t.Error(err)
 		case <-serverDone:
 			n--
 		case <-clientDone:
@@ -195,16 +191,15 @@ func TestClientSend(t *testing.T) {
 	// sent and the appropriate answer is received.
 	testSend := func(data sendData) func(t *testing.T) {
 		done := make(chan int)
-		errors := make(chan error)
 
 		go func() {
 			ans, err := client.Send(data.requestPayload)
 
 			if err != nil {
-				errors <- err
+				t.Error(err)
 			}
 			if !bytes.Equal(ans, data.responsePayload) {
-				errors <- fmt.Errorf("Client wanted answer `%s`, got `%s`", data.responsePayload, ans)
+				t.Errorf("Client wanted answer `%s`, got `%s`", data.responsePayload, ans)
 			}
 			done <- 1
 		}()
@@ -213,7 +208,7 @@ func TestClientSend(t *testing.T) {
 			buf := <-fakeConn.WriteCh
 
 			if !bytes.Equal(buf, data.wireRequest) {
-				errors <- fmt.Errorf("Server wanted %v, got %v", data.wireRequest, buf)
+				t.Errorf("Server wanted %v, got %v", data.wireRequest, buf)
 			}
 
 			for _, packet := range data.wireResponse {
@@ -226,8 +221,6 @@ func TestClientSend(t *testing.T) {
 			// Wait for both the client and server goroutines to finish.
 			for n := 2; n > 0; {
 				select {
-				case err := <-errors:
-					t.Error(err)
 				case <-done:
 					n--
 				case <-time.After(timeoutSeconds * time.Second):
@@ -290,7 +283,6 @@ func TestClientServerInitiated(t *testing.T) {
 
 	t.Run("Ping", func(t *testing.T) {
 		done := make(chan int)
-		errors := make(chan error)
 
 		go func() {
 			fakeConn.ReadCh <- []byte("\x03\x00\x00\x00\x0d\x00\x00\x00" + `{"nonce":"1"}`)
@@ -298,7 +290,7 @@ func TestClientServerInitiated(t *testing.T) {
 
 			buf := <-fakeConn.WriteCh
 			if !bytes.Equal(buf, response) {
-				errors <- fmt.Errorf("Server wanted %v, got %v", response, buf)
+				t.Errorf("Server wanted %v, got %v", response, buf)
 			}
 
 			done <- 1
@@ -307,8 +299,6 @@ func TestClientServerInitiated(t *testing.T) {
 		select {
 		case <-done:
 			// Good.
-		case err := <-errors:
-			t.Error(err)
 		case <-time.After((1 + timeoutSeconds) * time.Second):
 			t.Fatal("Timeout")
 		}
