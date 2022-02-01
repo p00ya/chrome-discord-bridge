@@ -63,12 +63,12 @@ func newFakeServer() (fake fakeServer, err error) {
 	return fake, err
 }
 
-func (fake fakeServer) Listener() (listener net.Listener, err error) {
-	return net.Listen("unix", fake.addr)
+func (f fakeServer) Listener() (net.Listener, error) {
+	return net.Listen("unix", f.addr)
 }
 
-func (fake fakeServer) Close() {
-	os.RemoveAll(fake.TmpDir)
+func (f fakeServer) Close() {
+	os.RemoveAll(f.TmpDir)
 }
 
 func TestDial(t *testing.T) {
@@ -133,22 +133,22 @@ func NewFakeConn() *fakeConn {
 	}
 }
 
-func (fake *fakeConn) Read(b []byte) (n int, err error) {
-	if len(fake.readBuf) == 0 {
-		fake.readBuf = <-fake.ReadCh
+func (f *fakeConn) Read(b []byte) (n int, err error) {
+	if len(f.readBuf) == 0 {
+		f.readBuf = <-f.ReadCh
 	}
-	n = copy(b, fake.readBuf)
-	fake.readBuf = fake.readBuf[n:]
+	n = copy(b, f.readBuf)
+	f.readBuf = f.readBuf[n:]
 	return
 }
 
-func (fake *fakeConn) Write(b []byte) (n int, err error) {
-	fake.WriteCh <- b
+func (f *fakeConn) Write(b []byte) (int, error) {
+	f.WriteCh <- b
 	return len(b), nil
 }
 
-func (fake *fakeConn) Close() error {
-	close(fake.WriteCh)
+func (f *fakeConn) Close() error {
+	close(f.WriteCh)
 	return nil
 }
 
@@ -180,7 +180,7 @@ func TestClientSend(t *testing.T) {
 				t.Error(err)
 			}
 			if !bytes.Equal(ans, data.responsePayload) {
-				t.Errorf("Client wanted answer `%s`, got `%s`", data.responsePayload, ans)
+				t.Errorf("client wanted answer `%s`, got `%s`", data.responsePayload, ans)
 			}
 			done <- 1
 		}()
@@ -189,7 +189,7 @@ func TestClientSend(t *testing.T) {
 			buf := <-fakeConn.WriteCh
 
 			if !bytes.Equal(buf, data.wireRequest) {
-				t.Errorf("Server wanted %v, got %v", data.wireRequest, buf)
+				t.Errorf("server wanted %v, got %v", data.wireRequest, buf)
 			}
 
 			for _, packet := range data.wireResponse {
@@ -271,7 +271,7 @@ func TestClientServerInitiated(t *testing.T) {
 
 			buf := <-fakeConn.WriteCh
 			if !bytes.Equal(buf, response) {
-				t.Errorf("Server wanted %v, got %v", response, buf)
+				t.Errorf("server wanted %v, got %v", response, buf)
 			}
 
 			done <- 1
@@ -303,7 +303,7 @@ func TestClientServerInitiated(t *testing.T) {
 		select {
 		case err := <-startDone:
 			if err == nil {
-				t.Errorf("Wanted Start() to return error, got nil")
+				t.Errorf("wanted Start() to return error, got nil")
 			}
 		case <-time.After(timeoutSeconds * time.Second):
 			t.Fatal("Timeout waiting for Start() to return")

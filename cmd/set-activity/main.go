@@ -57,17 +57,20 @@ func clientKeys() []string {
 	return keys
 }
 
-func getClientId(clientIdOrName string) (clientId string, err error) {
+func lookupClientId(clientIdOrName string) (string, error) {
 	if id, ok := clientMap[clientIdOrName]; ok {
-		clientId = id
-	} else if ok, _ := regexp.MatchString(`\d+`, clientIdOrName); !ok {
-		return "", fmt.Errorf(
-			"invalid CLIENT_ID '%s'; must be number or one of: [%s]",
-			clientIdOrName, strings.Join(clientKeys(), ", "))
-	} else {
-		clientId = clientIdOrName
+		// Valid name.
+		return id, nil
 	}
-	return clientId, nil
+
+	if ok, _ := regexp.MatchString(`\d+`, clientIdOrName); ok {
+		// Valid numeric ID.
+		return clientIdOrName, nil
+	}
+
+	return "", fmt.Errorf(
+		"invalid CLIENT_ID '%s'; must be number or one of: [%s]",
+		clientIdOrName, strings.Join(clientKeys(), ", "))
 }
 
 func main() {
@@ -82,7 +85,7 @@ func main() {
 	}
 	var clientId string
 	var err error
-	clientId, err = getClientId(flag.Arg(0))
+	clientId, err = lookupClientId(flag.Arg(0))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		printUsage()

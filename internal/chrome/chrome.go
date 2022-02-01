@@ -22,7 +22,7 @@ type Host struct {
 
 	// closed receives a value when the connection to Chrome should be shut down.
 	// Only written to by Close(), only read by Start().
-	closed chan bool
+	closed chan struct{}
 
 	// inFile is the file for reading from Chrome (typically stdin).
 	// Only read by (an anonymous goroutine spawned by) Start().
@@ -47,7 +47,7 @@ func NewHost(in io.Reader, out io.WriteCloser) *Host {
 	return &Host{
 		in:     make(chan []byte),
 		out:    make(chan []byte),
-		closed: make(chan bool),
+		closed: make(chan struct{}),
 		reader: in,
 		writer: out,
 	}
@@ -59,89 +59,89 @@ func NewHost(in io.Reader, out io.WriteCloser) *Host {
 //
 // Start returns if there was an error or if Close() was called.  It will close
 // the writer the host was created with, but not the reader.
-func (host *Host) Start() (err error) {
+func (h *Host) Start() error {
 	readerCh := make(chan []byte)
 
-	// Read messages from host.reader and send them to readerCh.
-	// This goroutine has exclusive access to host.reader.
-	go func(reader io.Reader) {
+	// Read messages from h.reader and send them to readerCh.
+	// This goroutine has exclusive access to h.reader.  It runs until it
+	// fails to read a message from Chrome.
+	go func(r io.Reader) {
 		for {
-			buf, err := readPayload(reader)
+			buf, err := readPayload(r)
 			if err != nil || len(buf) == 0 {
 				break
 			}
 			readerCh <- buf
 		}
 		close(readerCh)
-	}(host.reader)
+	}(h.reader)
 
-EventLoop:
+	defer close(h.in)
+	defer h.writer.Close()
+
 	for {
 		select {
 		case request, ok := <-readerCh:
 			if !ok {
 				// Chrome-initiated shutdown.
-				break EventLoop
+				return nil
 			}
-			host.in <- request
-		case <-host.closed:
+			h.in <- request
+		case <-h.closed:
 			// Client-initiated shutdown.
-			break EventLoop
+			return nil
 		}
 
 		// Don't read more messages from Chrome until we've responded.
-		response := <-host.out
-		if err = writePayload(response, host.writer); err != nil {
-			break EventLoop
+		response := <-h.out
+		if err := writePayload(response, h.writer); err != nil {
+			return err
 		}
 	}
-	close(host.in)
-	host.writer.Close()
-	return
 }
 
 // readPayload returns a Chrome native messaging payload read from the given
 // file.
-func readPayload(in io.Reader) (payload []byte, err error) {
+func readPayload(in io.Reader) ([]byte, error) {
 	header := make([]byte, headerLen)
-	var n int
-	switch n, err = in.Read(header); {
+	switch n, err := in.Read(header); {
 	case n == 0 || err == io.EOF:
 		// Clean shutdown from Chrome's end.
 		return nil, io.EOF
 	case err != nil:
-		return
+		return nil, err
 	case n != headerLen:
-		err = fmt.Errorf("Wanted %d-byte header, read %d bytes", headerLen, n)
-		return
+		err = fmt.Errorf("wanted %d-byte header, read %d bytes", headerLen, n)
+		return nil, err
 	}
 
 	payloadLen := nativeEndian.Uint32(header)
 	if payloadLen > maxPayloadBytes {
-		err = fmt.Errorf("Want at most %d-byte payload, got %d", maxPayloadBytes, payloadLen)
-		return
+		return nil, fmt.Errorf("want at most %d-byte payload, got %d", maxPayloadBytes, payloadLen)
 	}
 
-	payload = make([]byte, payloadLen)
-	_, err = io.ReadFull(in, payload)
-	return
+	payload := make([]byte, payloadLen)
+	_, err := io.ReadFull(in, payload)
+	return payload, err
 }
 
 // writePayload sends a Chrome native messaging payload to Chrome.
-func writePayload(payload []byte, out io.Writer) (err error) {
+func writePayload(payload []byte, out io.Writer) error {
 	buf := make([]byte, headerLen+len(payload))
 	nativeEndian.PutUint32(buf[:headerLen], uint32(len(payload)))
 	copy(buf[headerLen:], payload)
 
-	for err == nil && len(buf) > 0 {
-		var n int
-		n, err = out.Write(buf)
-		if n == 0 {
+	for len(buf) > 0 {
+		switch n, err := out.Write(buf); {
+		case n == 0:
 			return io.EOF
+		case err != nil:
+			return err
+		default:
+			buf = buf[n:]
 		}
-		buf = buf[n:]
 	}
-	return
+	return nil
 }
 
 // Responder is an abstraction for responding to a request from Chrome.
@@ -160,14 +160,14 @@ func (r Responder) Respond(response []byte) {
 // request payload and a Responder object.  The caller must call the Respond()
 // method on the returned object exactly once (and before calling Receive
 // again), which will forward the response to Chrome.
-func (host *Host) Receive() (request []byte, responder *Responder) {
-	request = <-host.in
-	responder = &Responder{response: host.out}
+func (h *Host) Receive() (request []byte, responder *Responder) {
+	request = <-h.in
+	responder = &Responder{response: h.out}
 	return
 }
 
 // Close terminates the event loop and indicates that no more messages will
 // be processed.
-func (host *Host) Close() {
-	host.closed <- true
+func (h *Host) Close() {
+	close(h.closed)
 }

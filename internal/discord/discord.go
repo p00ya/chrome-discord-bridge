@@ -46,18 +46,15 @@ type Client struct {
 	// It need not be a net.Conn, but it must support concurrent calls to Read
 	// and Write like net.Conn.
 	rw io.ReadWriteCloser
-
-	// Blocks until the last message sent with Send() has received an answer.
-	waitForAnswer chan int
 }
 
 // Discord-RPC message opcodes.
 const (
-	Handshake = 0
-	Frame     = 1
-	Close     = 2
-	Ping      = 3
-	Pong      = 4
+	Handshake = iota
+	Frame
+	Close
+	Ping
+	Pong
 )
 
 // Message is the Discord RPC message.
@@ -91,32 +88,36 @@ func newClient(rw io.ReadWriteCloser) *Client {
 }
 
 // Dial opens the Discord socket and returns a client for sending messages.
-func Dial(tmpDir string) (c *Client, err error) {
-	var conn net.Conn
+func Dial(tmpDir string) (*Client, error) {
+	var err error
 
 	// Socket may be numbered from 0 to 9.
 	for i := 0; i < 10; i++ {
 		addr := getDiscordSocket(tmpDir, i)
 
+		var conn net.Conn
 		// Go's "unix" network is equivalent to AF_UNIX/SOCK_STREAM.
-		conn, err = net.Dial("unix", addr)
-
-		if err == nil {
-			break
+		if conn, err = net.Dial("unix", addr); err != nil {
+			continue
 		}
+
+		return newClient(conn), nil
 	}
 
-	if err != nil {
-		return
-	}
+	return nil, fmt.Errorf("got errors opening Discord sockets, last was: %w", err)
+}
 
-	c = newClient(conn)
-	return
+func (c *Client) close() {
+	close(c.in)
+	c.rw.Close()
+	c.rw = nil
 }
 
 // Start waits for messages written with Send(), and sends them to the socket.
 // It will also listen for any messages initiated by Discord.
-func (c *Client) Start() (err error) {
+func (c *Client) Start() error {
+	defer c.close()
+
 	// nextOpcode is the opcode to use for the next packet sent via Send().
 	// The first packet sent will be marked as a Handshake, and subsequent packets
 	// will be marked as Frames.
@@ -126,54 +127,51 @@ func (c *Client) Start() (err error) {
 	// or writes from Send()).  Each iteration of the loop reads one message from
 	// Discord, either if there is an unsolicited one waiting, or as a response
 	// to Send().
-EventLoop:
-	for err == nil {
+	for {
 		readCh := make(chan messageResult)
+		// Will block the for loop from iterating until it returns, since one value
+		// from readCh is always read.
 		go func() {
 			msg, err := readMessage(c.rw)
 			readCh <- messageResult{msg, err}
 		}()
 
-		var r messageResult
 		select {
 		case payload, ok := <-c.out:
 			// Got a Send() or Close().
 			if !ok {
-				break EventLoop
+				return nil
 			}
 
-			if err = writeMessage(message{Opcode: nextOpcode, Payload: payload}, c.rw); err != nil {
-				break EventLoop
+			if err := writeMessage(message{Opcode: nextOpcode, Payload: payload}, c.rw); err != nil {
+				return err
 			}
 			nextOpcode = Frame
 			// Block on an answer from Discord.
-			r = <-readCh
-			err = r.err
-			if r.err == nil {
-				c.in <- r.msg
+			var r messageResult
+			if r = <-readCh; r.err != nil {
+				return r.err
 			}
+			c.in <- r.msg
 
-		case r = <-readCh:
-			err = r.err
+		case r := <-readCh:
 			// Unsolicited message from Discord.
 			switch {
-			case err != nil:
-				// Terminates loop.
+			case r.err != nil:
+				return r.err
 			case r.msg.Opcode == Ping:
 				// Respond immediately to ping.
 				r.msg.Opcode = Pong
-				err = writeMessage(r.msg, c.rw)
+				if err := writeMessage(r.msg, c.rw); err != nil {
+					return err
+				}
 			case r.msg.Opcode == Close:
-				err = fmt.Errorf("Discord IPC connection terminated by Discord")
+				return fmt.Errorf("Discord IPC connection terminated by Discord")
 			default:
-				err = fmt.Errorf("Got unexpected opcode: %d, payload: %v", r.msg.Opcode, r.msg.Payload)
+				return fmt.Errorf("got unexpected opcode: %d, payload: %v", r.msg.Opcode, r.msg.Payload)
 			}
 		}
 	}
-	close(c.in)
-	c.rw.Close()
-	c.rw = nil
-	return
 }
 
 // Send sends the given payload to Discord and returns the answer payload. It
@@ -182,13 +180,13 @@ EventLoop:
 //
 // The returned answer does not include the header used by Discord's IPC
 // protocol; it's just the payload (typically JSON).
-func (c *Client) Send(payload Payload) (ans Payload, err error) {
+func (c *Client) Send(payload Payload) (Payload, error) {
 	c.out <- payload
 
-	if m, ok := <-c.in; !ok {
-		return ans, fmt.Errorf("Socket closed while waiting for response")
+	if msg, ok := <-c.in; !ok {
+		return nil, fmt.Errorf("socket closed while waiting for response")
 	} else {
-		return m.Payload, nil
+		return msg.Payload, nil
 	}
 }
 
@@ -218,33 +216,35 @@ type messageResult struct {
 }
 
 // readMessage reads a message from the socket.
-func readMessage(r io.Reader) (m message, err error) {
+func readMessage(r io.Reader) (message, error) {
+	var msg message
+
 	header := make([]byte, headerLen)
-	var n int
-	switch n, err = r.Read(header); {
+	switch n, err := r.Read(header); {
 	case err != nil:
-		return
+		return msg, err
 	case n != headerLen:
-		err = fmt.Errorf("Wanted %d-byte header, read %d bytes", headerLen, n)
-		return
+		return msg, fmt.Errorf("wanted %d-byte header, read %d bytes", headerLen, n)
 	}
 
 	reader := bytes.NewReader(header)
-	binary.Read(reader, binary.LittleEndian, &m.Opcode)
+	binary.Read(reader, binary.LittleEndian, &msg.Opcode)
 	var payloadLen int32
 	binary.Read(reader, binary.LittleEndian, &payloadLen)
 
-	m.Payload = make([]byte, payloadLen)
-	_, err = io.ReadFull(r, m.Payload)
-	return
+	msg.Payload = make([]byte, payloadLen)
+	_, err := io.ReadFull(r, msg.Payload)
+	return msg, err
 }
 
 // writeMessage writes a message to the socket.
-func writeMessage(m message, w io.Writer) (err error) {
-	buf := m.encode()
-	var n int
-	if n, err = w.Write(buf); n != len(buf) {
-		err = fmt.Errorf("Wanted to write %d bytes, wrote %d bytes", len(buf), n)
+func writeMessage(msg message, w io.Writer) error {
+	buf := msg.encode()
+	switch n, err := w.Write(buf); {
+	case err != nil:
+		return err
+	case n != len(buf):
+		return fmt.Errorf("wanted to write %d bytes, wrote %d bytes", len(buf), n)
 	}
-	return
+	return nil
 }
