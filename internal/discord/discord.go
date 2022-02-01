@@ -128,9 +128,10 @@ func (c *Client) Start() error {
 	// Discord, either if there is an unsolicited one waiting, or as a response
 	// to Send().
 	for {
-		readCh := make(chan messageResult)
-		// Will block the for loop from iterating until it returns, since one value
-		// from readCh is always read.
+		readCh := make(chan messageResult, 1)
+		// Will block the for loop from iterating until the read occurs, since one
+		// value from readCh is always read.  Never blocks on the (buffered)
+		// channel.
 		go func() {
 			msg, err := readMessage(c.rw)
 			readCh <- messageResult{msg, err}
