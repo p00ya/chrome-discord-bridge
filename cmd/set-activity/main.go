@@ -74,8 +74,8 @@ func lookupClientId(clientIdOrName string) (string, error) {
 }
 
 func main() {
-	var detailsFlag = flag.String("d", "", "Activity details")
-	var pidFlag = flag.Int("p", -1, "PID of the activity")
+	detailsFlag := flag.String("d", "", "Activity details")
+	pidFlag := flag.Int("p", -1, "PID of the activity")
 	flag.Usage = printUsage
 	flag.Parse()
 	if flag.NArg() != 2 {
@@ -83,9 +83,7 @@ func main() {
 		printUsage()
 		os.Exit(exitInvalidUsage)
 	}
-	var clientId string
-	var err error
-	clientId, err = lookupClientId(flag.Arg(0))
+	clientId, err := lookupClientId(flag.Arg(0))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		printUsage()
@@ -108,18 +106,18 @@ func main() {
 	}
 	go discordClient.Start()
 
-	if res, err := sendHandshake(discordClient, clientId); err != nil {
+	var res []byte
+	if res, err = sendHandshake(discordClient, clientId); err != nil {
 		fmt.Fprintf(os.Stderr, "Error sending HANDSHAKE: %v\n", err)
 		os.Exit(exitFailure)
-	} else {
-		fmt.Println(string(res))
 	}
-	if res, err := sendSetActivity(discordClient, pid, activityState, *detailsFlag); err != nil {
+	fmt.Println(string(res))
+
+	if res, err = sendSetActivity(discordClient, pid, activityState, *detailsFlag); err != nil {
 		fmt.Fprintf(os.Stderr, "Error sending SET_ACTIVITY: %v\n", err)
 		os.Exit(exitFailure)
-	} else {
-		fmt.Println(string(res))
 	}
+	fmt.Println(string(res))
 
 	// Wait for a user interrupt before exiting.
 	sigint := make(chan os.Signal, 1)
