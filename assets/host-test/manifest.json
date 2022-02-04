@@ -1,0 +1,12 @@
+{
+	"name": "Host Test",
+	"description": "Chrome native messaging host test utility",
+	"version": "1.0",
+	"manifest_version": 3,
+	"permissions": [
+		"nativeMessaging"
+	],
+	"action": {
+		"default_popup": "popup.html"
+	}
+}
