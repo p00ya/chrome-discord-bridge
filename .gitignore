@@ -1,0 +1,8 @@
+# Go binaries
+chrome-discord-bridge
+echo
+install-host
+set-activity
+
+# Node.js (used for linting)
+node_modules
