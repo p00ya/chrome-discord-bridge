@@ -26,6 +26,4 @@ jobs:
     - name: eslint
       run: |
         cd assets/host-test && \
-        npm init -y >/dev/null && \
-        npm install 'eslint@^8.8.0' -y >/dev/null && \
-        npm exec eslint *.js
+        npx -y eslint@^8.8.0 .
