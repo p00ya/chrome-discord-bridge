@@ -8,6 +8,8 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: 1.17.x
+    - name: setup-node
+      uses: actions/setup-node@v2
     - name: checkout
       uses: actions/checkout@v2
     - uses: actions/cache@v2
@@ -21,3 +23,9 @@ jobs:
       run: go test ./...
     - name: vet
       run: go vet ./...
+    - name: eslint
+      run: |
+        cd assets/host-test && \
+        npm init -y >/dev/null && \
+        npm install 'eslint@^8.8.0' -y >/dev/null && \
+        npm exec eslint *.js
