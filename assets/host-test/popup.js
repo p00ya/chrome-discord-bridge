@@ -1,19 +1,24 @@
-var port = null;
+let port = null;
 
 // Discord app ID for chrome-discord-bridge dev.
 const exampleAppId = "922040684020645908";
 
-function log(s) {
-  const output = document.getElementById("output");
+const host = document.getElementById("host");
+const connect = document.getElementById("connect");
+const handshake = document.getElementById("handshake");
+const setactivity = document.getElementById("setactivity");
+const disconnect = document.getElementById("disconnect");
+const output = document.getElementById("output");
 
+function log(s) {
   output.innerText = output.innerText + "\n" + s;
 }
 
 function reset() {
   port = null;
-  document.getElementById("host").disabled = false;
-  document.getElementById("connect").disabled = false;
-  document.getElementById("disconnect").disabled = true;
+  host.disabled = false;
+  connect.disabled = false;
+  disconnect.disabled = true;
 }
 
 connect.addEventListener("click", () => {
@@ -21,13 +26,11 @@ connect.addEventListener("click", () => {
     log("Already connected");
   }
 
-  const host = document.getElementById("host").value;
-
-  port = chrome.runtime.connectNative(host);
-  log("Connected to " + host);
-  document.getElementById("host").disabled = true;
-  document.getElementById("connect").disabled = true;
-  document.getElementById("disconnect").disabled = false;
+  port = chrome.runtime.connectNative(host.value);
+  log("Connected to " + host.value);
+  host.disabled = true;
+  connect.disabled = true;
+  disconnect.disabled = false;
 
   port.onMessage.addListener((msg) => {
     log("Received: " + JSON.stringify(msg));
