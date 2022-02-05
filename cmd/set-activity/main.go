@@ -103,19 +103,19 @@ func main() {
 	var discordClient *discord.Client
 	discordClient, err = discord.Dial(tmpDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error connecting to Discord socket: %v", err)
+		fmt.Fprintf(os.Stderr, "Error connecting to Discord socket: %v\n", err)
 		os.Exit(exitFailure)
 	}
 	go discordClient.Start()
 
 	if res, err := sendHandshake(discordClient, clientId); err != nil {
-		fmt.Fprintf(os.Stderr, "Error sending HANDSHAKE: %v", err)
+		fmt.Fprintf(os.Stderr, "Error sending HANDSHAKE: %v\n", err)
 		os.Exit(exitFailure)
 	} else {
 		fmt.Println(string(res))
 	}
 	if res, err := sendSetActivity(discordClient, pid, activityState, *detailsFlag); err != nil {
-		fmt.Fprintf(os.Stderr, "Error sending SET_ACTIVITY: %v", err)
+		fmt.Fprintf(os.Stderr, "Error sending SET_ACTIVITY: %v\n", err)
 		os.Exit(exitFailure)
 	} else {
 		fmt.Println(string(res))
