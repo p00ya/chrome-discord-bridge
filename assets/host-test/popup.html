@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html>
 	<body>
+		<label for="host">Host: </label><input id="host" pattern="([a-z0-9_]+)+(\.[a-z0-9_]+)*" value="io.github.p00ya.cdb_echo"></input>
 		<button id="connect">Connect</button>
-		<button id="send">Send</button>
-		<button id="disconnect">Disconnect</button>
+		<button id="handshake">Send handshake</button>
+		<button id="setactivity">Set activity</button>
+		<button id="disconnect" disabled="disabled">Disconnect</button>
 		<pre id="output"></pre>
 		<script src="popup.js"></script>
 	</body>
