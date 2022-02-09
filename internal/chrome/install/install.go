@@ -1,4 +1,4 @@
-package main
+package install
 
 import (
 	"encoding/json"
@@ -35,18 +35,18 @@ func (m Manifest) Filename() string {
 	return m.Name + ".json"
 }
 
-// InstallCurrentUser installs the manifest for the calling user.
-func InstallCurrentUser(m Manifest) error {
+// CurrentUser installs the manifest for the calling user.
+func CurrentUser(m Manifest) error {
 	usr, err := user.Current()
 	if err != nil {
 		return err
 	}
-	return InstallUser(m, usr.HomeDir)
+	return User(m, usr.HomeDir)
 }
 
-// InstallUser creates and installs a Chrome manifest to a user-specific
+// User creates and installs a Chrome manifest to a user-specific
 // directory on macOS.
-func InstallUser(m Manifest, homeDir string) error {
+func User(m Manifest, homeDir string) error {
 	buf, err := m.Marshal()
 	if err != nil {
 		return err
@@ -55,9 +55,9 @@ func InstallUser(m Manifest, homeDir string) error {
 	return install(name, buf)
 }
 
-// InstallSystem creates and install a Chrome manifest to the system-wide
+// System creates and install a Chrome manifest to the system-wide
 // directory on macOS.
-func InstallSystem(m Manifest) error {
+func System(m Manifest) error {
 	buf, err := m.Marshal()
 	if err != nil {
 		return err

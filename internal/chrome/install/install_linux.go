@@ -1,4 +1,4 @@
-package main
+package install
 
 // systemDir is the system-wide install location on Linux.
 const systemDir = "/etc/opt/chrome/native-messaging-hosts"

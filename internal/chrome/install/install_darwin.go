@@ -1,4 +1,4 @@
-package main
+package install
 
 // systemDir is the system-wide install location on macOS.
 const systemDir = "/Library/Google/Chrome/NativeMessagingHosts"

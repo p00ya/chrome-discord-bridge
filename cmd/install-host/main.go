@@ -13,6 +13,10 @@ import (
 	"strings"
 )
 
+import (
+	"github.com/p00ya/chrome-discord-bridge/internal/chrome/install"
+)
+
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n"+
 		"%s [-system] [-o ORIGIN]... [-d DESC] NAME BINARY\n\n", os.Args[0])
@@ -77,7 +81,7 @@ func main() {
 		os.Exit(exitFailure)
 	}
 
-	m := Manifest{
+	m := install.Manifest{
 		Name:           name,
 		Description:    *desc,
 		Path:           absPath,
@@ -85,9 +89,9 @@ func main() {
 	}
 
 	if *sys {
-		err = InstallSystem(m)
+		err = install.System(m)
 	} else {
-		err = InstallCurrentUser(m)
+		err = install.CurrentUser(m)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
