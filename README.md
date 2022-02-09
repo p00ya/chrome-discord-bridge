@@ -6,7 +6,7 @@ It's written in Go with no third-party dependencies.   It's intended to minimize
 
 The bridge itself and the library functionality for both the Discord and Chrome ends is complete and unit-tested, and there is a utility for manually setting the Discord status (without a Chrome extension) in `cmd/set-activity`.
 
-A Chrome extension to utilize the bridge is WIP as of February 2022.
+A Chrome extension to utilize the bridge is WIP as of February 2022, see https://github.com/p00ya/browser-activity.
 
 ## Building and running
 
