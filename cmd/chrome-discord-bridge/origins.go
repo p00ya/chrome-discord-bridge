@@ -22,6 +22,10 @@ func IsValidOrigin(s string) bool {
 
 func init() {
 	for _, s := range strings.Split(originsDelimited, "\n") {
-		origins[strings.TrimSpace(s)] = struct{}{}
+		trimmed := strings.TrimSpace(s)
+		if trimmed == "" {
+			continue
+		}
+		origins[trimmed] = struct{}{}
 	}
 }
