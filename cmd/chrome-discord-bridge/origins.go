@@ -14,6 +14,17 @@ var originsDelimited string
 // origins is a set of URLs that are allowed to call the native messaging host.
 var origins = make(map[string]struct{})
 
+func uniqueOrigins() []string {
+	keys := make([]string, len(origins))
+
+	i := 0
+	for k := range origins {
+		keys[i] = k
+		i++
+	}
+	return keys
+}
+
 // IsValidOrigin returns true if s matches a line in origins.txt.
 func IsValidOrigin(s string) bool {
 	_, ok := origins[s]

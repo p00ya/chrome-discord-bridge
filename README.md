@@ -10,19 +10,24 @@ A Chrome extension to utilize the bridge is WIP as of February 2022, see https:/
 
 ## Building and running
 
-To use with a Chrome extension with the ID `nglhipbdoknhpejdpceibmeaohidgcod`, first add the extension URL on its own line in `cmd/chrome-discord-bridge/origins.txt`.  This list of allowed origins is built into the binary as an additional layer of security.
+Each Chrome extension that will be used with `chrome-discord-bridge` must be added to `cmd/chrome-discord-bridge/origins.txt`.  This list of allowed origins is part of the manifest file that Chrome enforces, and is also built into the binary as an additional layer of security.
+
+You can determine Chrome extension IDs by loading chrome://extensions in Chrome.  For example, to add the Chrome extension with the ID `nglhipbdoknhpejdpceibmeaohidgcod`, add a line in `origins.txt` like:
+
+```
+chrome-extension://nglhipbdoknhpejdpceibmeaohidgcod/
+```
 
 Then with Go 1.17+, run:
 
 ```
-go build ./cmd/chrome-discord-bridge ./cmd/install-host
+go build ./cmd/chrome-discord-bridge
 ```
 
-This will build the bridge (`chrome-discord-bridge` binary) and a helper for installing a Native Messaging Host manifest to Chrome.
-
-Run the `install-host` command to write a manifest for the Native Messaging Host to Chrome:
+This will build the `chrome-discord-bridge` binary.  To write a manifest for the Native Messaging Host to Chrome (for just the current system user), run:
 
 ```
-ID='nglhipbdoknhpejdpceibmeaohidgcod'
-./install-host -o "chrome-extension://${ID}/" -d 'Chrome/Discord bridge - see https://github.com/p00ya/chrome-discord-bridge)' 'io.github.p00ya.cdb' chrome-discord-bridge
+./chrome-discord-bridge -install
 ```
+
+You will need to re-run the previous command if the path to the binary changes.
