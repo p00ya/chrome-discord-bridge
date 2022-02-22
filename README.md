@@ -1,42 +1,28 @@
 # chrome-discord-bridge
 
-This code bridges Chrome "native messages" to Discord's IPC socket.
+chrome-discord-bridge acts as a "Chrome native messaging host", and forwards Chrome "native messages" to Discord's IPC socket.
 
-It's written in Go with no third-party dependencies.   It's intended to minimize the amount of code running natively, so that the logic for communicating with Discord can be isolated in the Chrome extension's sandbox.  It's much lighter-weight than PreMiD's node.js app.  At the same time, it's easier to reason about the correctness of the code compared to the official C++ Discord-RPC library because of Go's memory management and concurrency primitives.
-
-chrome-discord-bridge is considered stable.
+It's considered stable.
 
 ## Installation and Usage
 
-Download an appropriate binary for your computer from the Github [releases page](https://github.com/p00ya/chrome-discord-bridge/releases).  Windows is not currently supported!
+chrome-discord-bridge is intended to be paired with the "Browser Activity" Chrome extension.  See the instructions at https://github.com/p00ya/browser-activity on how to install chrome-discord-bridge and the extension.
 
-Extract the archive with:
+## Security
 
-```
-tar -xf chrome-discord-bridge_*.tar.xz
-```
+chrome-discord-bridge runs natively with no sandbox.  It's been designed to be easy to audit, so that users can be confident installing it.
 
-On macOS, you will also need to run:
+There's not much source code.  The logic is fairly minimal because chrome-discord-bridge doesn't do much more than proxy bytes between stdin/stdout and Discord's IPC socket.  It has no dependencies (other than the Go standard library), so there's no implicit trust in third-party software.
 
-```
-xattr -d com.apple.quarantine chrome-discord-bridge
-```
+The source code is written in Go and easy to read.  Go's primitives make it easy to reason about concurrency and memory management.  Go's static typing provides compile-time guarantees about correctness.
 
-Then register the utility with Chrome (for the current user) with:
+It's easy to verify the code works, because it's well-tested.  There are unit tests, and also supplementary utilities for manually testing with Chrome and Discord.
 
-```
-./chrome-discord-bridge -install
-```
-
-Note that you will have to re-run this last command if you move the binary, because the Chrome manifest contains an absolute path to the binary.
-
-### Browser Activity
-
-chrome-discord-bridge is intended to be paired with the [Browser Activity](https://github.com/p00ya/browser-activity) Chrome extension.
+From within the browser, only trusted Chrome extensions can invoke chrome-discord-bridge.  The chrome-discord-bridge binary hardcodes a list of allowed origins (extension IDs).  There are two layers of checks: one enforced by Chrome using the installation manifest, and another within chrome-discord-bridge itself when it checks its command-line arguments.
 
 ## Development
 
-Each Chrome extension that will be used with `chrome-discord-bridge` must be added to `cmd/chrome-discord-bridge/origins.txt`.  This list of allowed origins is part of the manifest file that Chrome enforces, and is also built into the binary as an additional layer of security.
+Each Chrome extension that will be used with `chrome-discord-bridge` must be added to `cmd/chrome-discord-bridge/origins.txt`.
 
 You can determine Chrome extension IDs by loading chrome://extensions in Chrome.  For example, to add the Chrome extension with the ID `nglhipbdoknhpejdpceibmeaohidgcod`, add a line in `origins.txt` like:
 
@@ -46,14 +32,19 @@ chrome-extension://nglhipbdoknhpejdpceibmeaohidgcod/
 
 Then with Go 1.17+, run:
 
-```
-go build ./cmd/chrome-discord-bridge
-```
+    go build ./cmd/chrome-discord-bridge
 
 This will build the `chrome-discord-bridge` binary.  To write a manifest for the Native Messaging Host to Chrome (for just the current system user), run:
 
-```
-./chrome-discord-bridge -install
-```
+    ./chrome-discord-bridge -install
+
 
 You will need to re-run the previous command if the path to the binary changes.
+
+### Testing
+
+Unit tests can be run with:
+
+    go test -v ./internal/...
+
+Some supplementary utilities for manually testing with Chrome and Discord can be found in `cmd/echo` and `cmd/set-activity` respectively.  Consult the `README.md` files in those sub-directories for additional information.
