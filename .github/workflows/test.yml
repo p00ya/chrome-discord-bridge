@@ -30,5 +30,4 @@ jobs:
       uses: actions/checkout@v2
     - name: eslint
       run: |
-        cd assets/host-test && \
-        npx -y eslint@^8.8.0 .
+        cd assets/host-test && npx -y eslint@^8.8.0 .
