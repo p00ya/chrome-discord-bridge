@@ -2,8 +2,6 @@
 
 The `install-host` command is a command-line utility for registering a Native Messaging Host with Chrome.
 
-Currently it only works on macOS.
-
 From the top level repository directory, build it with:
 
 ```
@@ -16,7 +14,7 @@ Then run it like:
 ./install-host -o 'chrome-extension://foo/' com.example.extension_name path/to/binary
 ```
 
-It will write a manifest file to Chrome's directory.
+On Linux and macOS, it will write a manifest file to Chrome's directory.  On Windows, it will write the manifest to the working directory, and also write a value to the Windows registry.
 
 ## Uninstallation
 
