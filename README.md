@@ -12,7 +12,9 @@ chrome-discord-bridge is intended to be paired with the "Browser Activity" Chrom
 
 chrome-discord-bridge runs natively with no sandbox.  It's been designed to be easy to audit, so that users can be confident installing it.
 
-There's not much source code.  The logic is fairly minimal because chrome-discord-bridge doesn't do much more than proxy bytes between stdin/stdout and Discord's IPC socket.  It has no dependencies (other than the Go standard library), so there's no implicit trust in third-party software.
+There's not much source code.  The logic is fairly minimal because chrome-discord-bridge doesn't do much more than proxy bytes between stdin/stdout and Discord's IPC socket.
+
+On macOS and Linux, it has no dependencies (other than the Go standard library), so there's no implicit trust in third-party software.  On Windows, it depends only on official packages from Google and Microsoft for registry and named pipes APIs.
 
 The source code is written in Go and easy to read.  Go's primitives make it easy to reason about concurrency and memory management.  Go's static typing provides compile-time guarantees about correctness.
 

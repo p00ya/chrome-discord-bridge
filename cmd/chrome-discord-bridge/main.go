@@ -88,10 +88,9 @@ func serveChrome() {
 		log.Fatalf("Error: invalid origin %s", origin)
 	}
 
-	tmpDir := os.TempDir()
 	var discordClient *discord.Client
 	var err error
-	discordClient, err = discord.Dial(tmpDir)
+	discordClient, err = discord.Dial()
 	if err != nil {
 		log.Fatalf("Error connecting to Discord socket: %v\n", err)
 	}

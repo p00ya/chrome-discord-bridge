@@ -17,7 +17,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"net"
 )
 
 // Payload is the type for Discord's message payload.
@@ -69,13 +68,6 @@ type message struct {
 	Payload Payload
 }
 
-// getDiscordSocket constructs a path to a Discord IPC socket.
-//
-// A socket may not actually exist at the returned path.
-func getDiscordSocket(tmpDir string, n int) string {
-	return fmt.Sprintf("%s/discord-ipc-%d", tmpDir, n)
-}
-
 // newClient creates a Client with the specified IPC socket.
 func newClient(rw io.ReadWriteCloser) *Client {
 	return &Client{
@@ -85,26 +77,6 @@ func newClient(rw io.ReadWriteCloser) *Client {
 		in:  make(chan message),
 		rw:  rw,
 	}
-}
-
-// Dial opens the Discord socket and returns a client for sending messages.
-func Dial(tmpDir string) (*Client, error) {
-	var err error
-
-	// Socket may be numbered from 0 to 9.
-	for i := 0; i < 10; i++ {
-		addr := getDiscordSocket(tmpDir, i)
-
-		var conn net.Conn
-		// Go's "unix" network is equivalent to AF_UNIX/SOCK_STREAM.
-		if conn, err = net.Dial("unix", addr); err != nil {
-			continue
-		}
-
-		return newClient(conn), nil
-	}
-
-	return nil, fmt.Errorf("got errors opening Discord sockets, last was: %w", err)
 }
 
 func (c *Client) close() {

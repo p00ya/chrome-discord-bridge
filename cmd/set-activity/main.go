@@ -97,9 +97,8 @@ func main() {
 		pid = os.Getpid()
 	}
 
-	tmpDir := os.TempDir()
 	var discordClient *discord.Client
-	discordClient, err = discord.Dial(tmpDir)
+	discordClient, err = discord.Dial()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error connecting to Discord socket: %v\n", err)
 		os.Exit(exitFailure)
