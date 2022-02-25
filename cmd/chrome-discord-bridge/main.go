@@ -79,7 +79,8 @@ func runInstall() {
 }
 
 func serveChrome() {
-	if len(os.Args) != 2 {
+	// Length should be exactly 2 on macOS and Linux, and 3 on Windows.
+	if len(os.Args) < 2 {
 		log.Fatalf("Error: wanted origin URL argument, got %d args", len(os.Args)-1)
 	}
 
