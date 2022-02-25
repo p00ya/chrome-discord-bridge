@@ -18,4 +18,9 @@ On Linux and macOS, it will write a manifest file to Chrome's directory.  On Win
 
 ## Uninstallation
 
-Delete the manifest file from Chrome's directory (`~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/` on macOS).
+On macOS and Linux, simply delete the manifest file from Chrome's directory:
+
+ *  macOS: `~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/`
+ *  Linux: `~/.config/google-chrome/NativeMessagingHosts`
+
+On Windows, delete the manifest file from whichever directory you ran `install-host` from, and delete the registry key under `HKEY_CURRENT_USER\SOFTWARE\Google\Chrome\NativeMessagingHosts\` using `regedit`.

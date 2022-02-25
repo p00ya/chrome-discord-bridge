@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/user"
-	"path/filepath"
 )
 
 // Manifest models the Chrome native messaging host manifest JSON.
@@ -33,37 +31,6 @@ func (m Manifest) Marshal() ([]byte, error) {
 // Filename is the approriate name for the manifest file (with no path).
 func (m Manifest) Filename() string {
 	return m.Name + ".json"
-}
-
-// CurrentUser installs the manifest for the calling user.
-func CurrentUser(m Manifest) error {
-	usr, err := user.Current()
-	if err != nil {
-		return err
-	}
-	return User(m, usr.HomeDir)
-}
-
-// User creates and installs a Chrome manifest to a user-specific
-// directory on macOS.
-func User(m Manifest, homeDir string) error {
-	buf, err := m.Marshal()
-	if err != nil {
-		return err
-	}
-	name := filepath.Join(homeDir, userSubDir, m.Filename())
-	return install(name, buf)
-}
-
-// System creates and install a Chrome manifest to the system-wide
-// directory on macOS.
-func System(m Manifest) error {
-	buf, err := m.Marshal()
-	if err != nil {
-		return err
-	}
-	name := filepath.Join(systemDir, m.Filename())
-	return install(name, buf)
 }
 
 // install writes the serialized manifest buffer to the given path.
