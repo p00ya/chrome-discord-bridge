@@ -1,15 +1,13 @@
 on: [push, pull_request]
 name: chrome-discord-bridge
 jobs:
-  test:
+  go:
     runs-on: ubuntu-latest
     steps:
     - name: setup-go
       uses: actions/setup-go@v2
       with:
         go-version: 1.17.x
-    - name: setup-node
-      uses: actions/setup-node@v2
     - name: checkout
       uses: actions/checkout@v2
     - uses: actions/cache@v2
@@ -23,6 +21,13 @@ jobs:
       run: go test ./...
     - name: vet
       run: go vet ./...
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+    - name: setup-node
+      uses: actions/setup-node@v2
+    - name: checkout
+      uses: actions/checkout@v2
     - name: eslint
       run: |
         cd assets/host-test && \
