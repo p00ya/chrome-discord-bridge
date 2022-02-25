@@ -6,7 +6,7 @@ It's considered stable.
 
 ## Installation and Usage
 
-chrome-discord-bridge is intended to be paired with the "Browser Activity" Chrome extension.  See the instructions at https://github.com/p00ya/browser-activity on how to install chrome-discord-bridge and the extension.
+chrome-discord-bridge is intended to be paired with the "Browser Activity" Chrome extension.  See the instructions at https://p00ya.github.io/browser-activity on how to install chrome-discord-bridge and the extension.
 
 ## Security
 
